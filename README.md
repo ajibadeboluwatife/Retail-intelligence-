@@ -1,48 +1,136 @@
-# Retail Intelligence
+# Retail Intelligence: Early Prediction of Session-Level Purchase Conversion
 
-Predict whether a retail browsing session will end in a purchase using only **early, pre-terminal user behavior**.
+## Abstract
 
-This project builds a machine learning pipeline that uses the first few events in a user session to estimate the likelihood of conversion before the session ends. The goal is to support early intervention strategies such as personalization, promotions, retargeting, or sales optimization.
+This project investigates whether a retail browsing session will culminate in a purchase using only **early, pre-terminal behavioral signals**. The central objective is to develop a predictive modeling framework that can estimate conversion likelihood before a session ends, thereby supporting real-time decision-making in digital commerce environments. To preserve deployment realism, the modeling strategy restricts input features to the first few observed events in each session and excludes terminal outcome information that would otherwise introduce target leakage. Multiple classification models are trained and compared using chronological data splits and a range of ranking, calibration, and threshold-sensitive evaluation metrics.
 
-## Project Objective
+## Research Objective
 
-Retail platforms often want to know whether a user is likely to purchase **before** the session is over. This repository focuses on:
+The study addresses the following question:
 
-- modeling user conversion from partial session behavior
-- avoiding target leakage by using only early-session events
-- comparing multiple classification models
-- evaluating ranking quality, calibration, threshold trade-offs, and lift
+> To what extent can early-session user behavior predict eventual purchase conversion in a retail interaction sequence?
 
-## Problem Statement
+This question is practically relevant in e-commerce settings where early identification of likely converters or non-converters can inform interventions such as personalized recommendations, promotional targeting, or user journey optimization.
 
-Given user session events such as page views, clicks, wishlist actions, and add-to-cart behavior, predict whether the session will ultimately convert.
+## Problem Formulation
 
-Instead of using the full session, this project limits features to the **early prefix** of each session so the prediction is useful in a real-world setting.
+Let each observation correspond to a user session represented as an ordered sequence of interaction events. The task is to perform **binary classification**:
 
-## Current Approach
+- **Positive class**: the session ends in conversion
+- **Negative class**: the session does not end in conversion
 
-The pipeline in `prediction.py`:
+Unlike retrospective conversion analysis, this project constrains the feature space to information available during the early portion of the session. This framing is intended to better reflect a realistic online prediction setting.
 
-1. loads event-level retail session data
-2. sorts events by session and event order
-3. constructs leakage-safe prefix features from the first few session events
-4. derives session-level behavioral, categorical, price, and timing features
-5. performs a chronological train/validation/test split
-6. trains multiple models:
-   - Logistic Regression
-   - Extra Trees Classifier
-   - Random Forest Classifier
-7. tunes a classification threshold on validation data
-8. evaluates final performance on the test set
-9. generates diagnostics such as:
-   - PR-AUC
-   - ROC-AUC
-   - F1
-   - precision / recall
-   - calibration table
-   - lift table
-   - confusion matrix
-   - feature effects / importance
+## Methodological Overview
+
+The workflow implemented in `prediction.py` follows the pipeline below:
+
+1. **Data ingestion**  
+   Event-level user behavior data are loaded from a CSV source and ordered by session identifier and event index.
+
+2. **Prefix-based feature construction**  
+   For each session, only the first few events are used to construct explanatory variables. This design reduces leakage from terminal actions and ensures that prediction is based on information that would have been available at inference time.
+
+3. **Session-level aggregation**  
+   Early interaction events are aggregated into summary features capturing:
+   - behavioral patterns
+   - temporal dynamics
+   - categorical interaction context
+   - price-related statistics
+   - action frequency and action composition
+
+4. **Chronological splitting**  
+   The resulting dataset is divided into training, validation, and test sets using a time-ordered split, which is preferable to random splitting when evaluating models intended for forward-looking use.
+
+5. **Model estimation**  
+   Several supervised learning algorithms are fit using a shared preprocessing framework.
+
+6. **Threshold selection and evaluation**  
+   Predicted probabilities are evaluated using ranking and classification metrics. A decision threshold is selected on the validation set and then applied to the held-out test set.
+
+## Models Considered
+
+The current implementation compares the following classifiers:
+
+- Logistic Regression
+- Extra Trees Classifier
+- Random Forest Classifier
+
+All models are embedded within a preprocessing pipeline that handles:
+- imputation of missing values
+- scaling of numeric variables
+- one-hot encoding of categorical variables
+
+## Evaluation Framework
+
+Model performance is assessed using multiple complementary criteria:
+
+### Ranking metrics
+- ROC-AUC
+- PR-AUC
+
+### Probability quality metrics
+- Brier score
+- Log loss
+
+### Threshold-dependent classification metrics
+- Precision
+- Recall
+- F1-score
+- Accuracy
+
+### Diagnostic analyses
+- precision-recall curve
+- calibration table
+- lift table
+- threshold trade-off analysis
+- confusion matrix
+- feature effect or importance summaries
+
+This multi-metric evaluation design is intended to provide a more robust assessment than accuracy alone, especially in settings where class imbalance may be present.
+
+## Feature Engineering
+
+The feature construction logic derives a range of early-session predictors, including:
+
+### Behavioral features
+- first observed action
+- last observed action within the prefix
+- count of observed action types
+- action rates across early events
+- binary indicators for exposure to key actions such as click, wishlist, and add-to-cart
+
+### Product and catalog interaction features
+- number of unique products viewed
+- number of unique categories encountered
+- number of unique brands encountered
+
+### Temporal features
+- session start hour
+- day of week
+- weekend indicator
+- elapsed time during observed prefix
+- time spent per observed event
+
+### Price-related features
+- mean price
+- median price
+- minimum and maximum price
+- price standard deviation
+- price range
+
+These variables are designed to summarize the intensity, diversity, and commercial orientation of early browsing behavior.
+
+## Leakage Avoidance
+
+A key methodological concern in conversion prediction is **target leakage**. This repository attempts to mitigate leakage by:
+
+- using only early-session events
+- excluding terminal actions from the predictive feature space
+- separating conversion targets from explanatory variables
+- applying time-aware dataset splitting
+
+This design choice is essential if the objective is to build models that can be meaningfully deployed in practice.
 
 ## Repository Structure
 
@@ -52,27 +140,27 @@ The pipeline in `prediction.py`:
 └── prediction.py
 ```
 
-> Note: the repository is currently in an early stage and is centered around a single modeling script.
+At present, the repository is organized as a compact prototype centered on a single analysis script.
 
-## Dataset
+## Dataset Requirements
 
-The script expects a CSV dataset named:
+The code expects a CSV file named:
 
 ```text
 retail_user_behavior_100k.csv
 ```
 
-Expected local path:
+Expected local location:
 
 ```text
 dataset/retail_user_behavior_100k.csv
 ```
 
-The script also contains fallback paths for Kaggle-style environments.
+The script also includes fallback paths intended for Kaggle-based execution environments.
 
-### Expected data characteristics
+### Expected fields
 
-Based on the code, the dataset should include fields like:
+From the current implementation, the dataset is expected to contain variables such as:
 
 - `session_id`
 - `timestamp_utc`
@@ -92,9 +180,9 @@ Based on the code, the dataset should include fields like:
 
 ## Installation
 
-Create and activate a virtual environment, then install the required packages.
+A virtual environment is recommended.
 
-### Option 1: pip
+### Unix / macOS
 
 ```bash
 python -m venv .venv
@@ -102,7 +190,7 @@ source .venv/bin/activate
 pip install pandas numpy matplotlib seaborn scikit-learn ipython
 ```
 
-### Option 2: Windows PowerShell
+### Windows PowerShell
 
 ```powershell
 python -m venv .venv
@@ -110,99 +198,65 @@ python -m venv .venv
 pip install pandas numpy matplotlib seaborn scikit-learn ipython
 ```
 
-## How to Run
+## Execution
 
-1. Place the dataset at:
-
-```text
-dataset/retail_user_behavior_100k.csv
-```
-
-2. Run the script:
+After placing the dataset in the expected directory, run:
 
 ```bash
 python prediction.py
 ```
 
-## What the Script Does
+The script loads the event data, constructs features, fits candidate models, evaluates predictive performance, and produces diagnostic visualizations.
 
-The script:
-- loads and validates the dataset path
-- builds early-session features
-- creates time-based train/validation/test splits
-- trains multiple classifiers
-- evaluates model performance
-- selects the best model based on validation performance
-- generates diagnostic plots and feature effect summaries
+## Reproducibility Notes
 
-## Feature Engineering Highlights
+The current repository represents an early-stage analytical prototype. To improve reproducibility and research transparency, future versions should include:
 
-Examples of engineered features include:
-
-- first and last observed action
-- first and last category / brand
-- number of unique products, brands, and categories
-- total / mean / max time spent
-- median / mean / min / max / std of price
-- elapsed session time
-- session start hour and day of week
-- weekend indicator
-- counts and rates of:
-  - views
-  - clicks
-  - wishlist actions
-  - add-to-cart actions
-- binary indicators such as:
-  - saw click
-  - saw wishlist
-  - saw add_to_cart
-
-## Modeling Notes
-
-This project tries to stay realistic by:
-- using only the first few session events
-- excluding terminal outcome leakage
-- splitting data chronologically instead of randomly
-- tuning thresholds on validation data before testing
-
-## Evaluation Outputs
-
-The workflow includes:
-- model leaderboard comparison
-- precision-recall visualization
-- calibration analysis
-- lift analysis by score decile
-- threshold trade-off analysis
-- confusion matrix visualization
-- feature effect / importance plots
-
-## Potential Use Cases
-
-- early conversion scoring
-- personalized recommendations
-- promotion triggering
-- abandoned-session intervention
-- traffic quality analysis
-- merchandising optimization
+- a formal dependency specification (`requirements.txt` or `pyproject.toml`)
+- version-pinned environments
+- modularized source code
+- saved experimental outputs
+- unit tests for feature generation and split logic
+- explicit data provenance documentation
 
 ## Limitations
 
-Current limitations of the repository include:
-- single-script structure
-- no dependency file yet
-- no automated tests
-- no CI workflow
-- minimal packaging / modularization
-- dataset is not bundled in the repo
+Several limitations should be noted:
 
-## Example Research Questions
+1. The codebase is currently implemented as a single script rather than a modular research package.
+2. The dataset is not bundled with the repository.
+3. No automated test suite is currently provided.
+4. No experiment tracking or hyperparameter search framework is yet included.
+5. The project currently emphasizes predictive performance and diagnostics rather than causal interpretation.
 
-This project can help answer questions like:
-- How predictive are the first 3 events in a session?
-- Which early behaviors are most associated with purchase?
-- How much lift can we get by targeting top-scored sessions?
-- Which model provides the best balance of recall and precision?
+## Future Work
+
+Potential next steps include:
+
+- extending the comparison to gradient boosting methods
+- introducing cross-validated hyperparameter optimization
+- calibrating predicted probabilities more formally
+- saving trained models and inference artifacts
+- modularizing the code into reusable components
+- adding an experiment report or notebook
+- benchmarking different prefix lengths
+- analyzing model fairness or subgroup performance across channels, devices, or regions
+
+## Practical Relevance
+
+Despite its prototype form, this project has meaningful applied relevance for:
+
+- early conversion scoring
+- intervention timing in e-commerce funnels
+- session prioritization for remarketing
+- dynamic personalization strategies
+- customer journey analytics
 
 ## Author
 
+Created by [@ajibadeboluwatife](https://github.com/ajibadeboluwatife)
+
+## License
+
+No license has been added yet. If reuse is intended, adding an open-source license is recommended.
 Created by [@ajibadeboluwatife](https://github.com/ajibadeboluwatife)
